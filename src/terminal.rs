@@ -1,25 +1,6 @@
-const ESC: &str = "\u{001b}";
+use crate::useful::{Coordinate, ESC};
 
-#[derive(Clone, Copy, Debug)]
-pub enum Alignment{
-    Centered,
-    None,
-}
-#[derive(Clone, Copy, Debug)]
-struct Dimension {
-    height: u32,
-    width: u32,
-}
-
-#[derive(Clone, Copy)]
-pub struct Coordinate(pub i32, pub i32);
-impl Coordinate {
-    pub fn as_array(&self) -> [i32; 2] {
-        [self.0, self.1]
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Text {
     pub color: Color,
     pub effect: Vec<Effect>,
@@ -27,8 +8,13 @@ pub struct Text {
 
 #[derive(Clone)]
 pub struct Background(pub Color);
+impl Default for Background {
+    fn default() -> Self {
+        Self(Color::Black)
+    }
+}
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Cursor {
     pub written: bool,
     pub position: Coordinate,
@@ -36,17 +22,18 @@ pub struct Cursor {
     pub background: Background,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum ClearCommands {
     ScreenCursorEnd,
     ScreenCursorBeginning,
     Screen,
     LineCursorEnd,
     LineCursorBeginning,
+    #[default]
     Line,
     Reset,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum Color {
     Black,
     Red,
@@ -55,6 +42,7 @@ pub enum Color {
     Blue,
     Magenta,
     Cyan,
+    #[default]
     White,
     BlackBright,
     RedBright,
@@ -65,8 +53,9 @@ pub enum Color {
     CyanBright,
     WhiteBright,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub enum Effect {
+    #[default]
     Normal,
     Bold,
     Underline,
@@ -180,23 +169,14 @@ impl Ansi for Text {
 }
 
 pub mod cursor {
+    use crate::useful::Dimension;
+
     use super::*;
-    impl Default for Cursor {
-        fn default() -> Self {
-            new()
-        }
-    }
-    pub fn new() -> Cursor {
-        Cursor {
-            written: false,
-            position: Coordinate(0, 0),
-            text: Text {
-                color: Color::White,
-                effect: vec![Effect::Normal],
-            },
-            background: Background(Color::Black),
-        }
-    }
+    // impl Default for Cursor {
+    //     fn default() -> Self {
+
+    //     }
+    // }
 
     pub enum ClearCommands {
         ScreenCursorEnd,
@@ -270,6 +250,17 @@ pub mod cursor {
     }
 
     impl Cursor {
+        pub fn new() -> Cursor {
+            Cursor {
+                written: false,
+                position: Coordinate(0, 0),
+                text: Text {
+                    color: Color::White,
+                    effect: vec![Effect::Normal],
+                },
+                background: Background(Color::Black),
+            }
+        }
         pub fn set_text(&mut self, text: &Text) {
             self.text = text.clone();
             print!("{}", self.text.ansi_code());
@@ -302,15 +293,17 @@ pub mod cursor {
             startposition: Coordinate,
             height: u32,
             width: u32,
-            drawing: fn(origin: [i32; 2], height: u32, width: u32),
+            drawing: fn(origin: Coordinate, dimension: Dimension),
         ) {
             self.write();
-            drawing(startposition.as_array(), height, width);
+            drawing(startposition, Dimension { height, width });
         }
     }
 }
 
 pub mod tui {
+    use crate::useful::Dimension;
+
     use super::*;
     use std::process::{Command, Stdio};
     #[derive(Clone)]
@@ -320,19 +313,11 @@ pub mod tui {
         cursor: Cursor,
     }
 
-    pub fn new() -> Tui {
-        Tui {
-            name: "Window0".to_string(),
-            size: get_size(),
-            cursor: cursor::new(),
-        }
-    }
-
     pub fn new_named(name: String) -> Tui {
         Tui {
             name: name,
             size: get_size(),
-            cursor: cursor::new(),
+            cursor: Cursor::new(),
         }
     }
     pub enum S {
@@ -341,6 +326,13 @@ pub mod tui {
     }
 
     impl Tui {
+        pub fn new() -> Self {
+            Self {
+                name: "Window0".to_string(),
+                size: get_size(),
+                cursor: Cursor::new(),
+            }
+        }
         pub fn cursor(&mut self) -> &mut Cursor {
             &mut self.cursor
         }
@@ -350,24 +342,25 @@ pub mod tui {
         ///(Input as percent and not ratio; ie. 50.0 == 50%)
         ///
         /// ```
-        ///let mut tui = terminal::tui::new();
-        ///tui.get_size();
-        ///let mut test = new();
-        ///test.set_text(&terminal::Text {
-        ///    color: Color::BlueBright,
-        ///    effect: vec![terminal::Effect::Reversed, terminal::Effect::Bold],
-        ///});
-        ///test.draw(
-        ///    Coordinate(3, 3),
-        ///tui.percent(50.0,S::Height),
-        ///tui.percent(50.0,S::Width),
-        ///    shapes::rectangle,
+        ///# let mut tui = Tui::new();
+        ///# let mut cursor = Cursor:new();
+        ///# cursor.set_text(Text::default());
+        ///cursor.draw(
+        ///   Coordinate(3, 3),
+        ///   tui.percent(50.0,S::Height),
+        ///   tui.percent(50.0,S::Width),
+        ///   shapes::rectangle,
         ///);
         ///```
         pub fn percent(&mut self, percentage: f64, s: S) -> u32 {
             let output = match s {
-                S::Height => ((Into::<f64>::into(self.size.height) * (percentage / 100.)).round()) as u32,
-                S::Width => (((Into::<f64>::into(self.size.width) * (percentage / 100.))*0.5).round()) as u32,
+                S::Height => {
+                    ((Into::<f64>::into(self.size.height) * (percentage / 100.)).round()) as u32
+                }
+                S::Width => {
+                    (((Into::<f64>::into(self.size.width) * (percentage / 100.)) * 0.5).round())
+                        as u32
+                }
             };
             println!("Percentage output:{:?}", &self.size);
             println!("Percentage output:{}", &output);
@@ -377,7 +370,6 @@ pub mod tui {
         pub fn get_size(&mut self) {
             self.size = get_size();
         }
-
     }
 
     fn get_size() -> Dimension {

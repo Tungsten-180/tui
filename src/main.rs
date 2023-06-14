@@ -1,15 +1,14 @@
-use terminal::{cursor::new, Background};
-
+mod useful;
+use useful::Coordinate;
 mod shapes;
+use terminal::{Cursor, tui::{S,Tui}, Color, Background};
 mod terminal;
-use terminal::{Ansi, Color, Coordinate,Alignment};
-
-use crate::terminal::tui::S;
+mod items;
 
 fn main() {
-    let mut tui = terminal::tui::new();
-    let mut test = new();
-    // test.set_background(&Background(Color::RedBright));
+    let mut tui = Tui::new();
+    let mut test = Cursor::new();
+    test.set_background(&Background(Color::RedBright));
     test.set_text(&terminal::Text {
         color: Color::BlueBright,
         effect: vec![terminal::Effect::Reversed, terminal::Effect::Bold],
@@ -18,10 +17,11 @@ fn main() {
     test.draw(
         Coordinate(0, 0),
         // 5,
-        tui.percent(20., S::Height),
-        tui.percent(20., S::Width),
+        tui.percent(100., S::Height),
+        tui.percent(100., S::Width),
         shapes::rectangle,
     );
+    // println!("hello world!");
     finish();
 }
 
